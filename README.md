@@ -7,11 +7,11 @@ If you are newcomer in Windows driver model and looking for very basic tutorials
 ## Assembly
 ch0. <a href="https://steward-fu.github.io/website/driver/wdm/wdk-7.1/asm_setup.htm">prepare</a>  
 ch1. <a href="https://steward-fu.github.io/website/driver/wdm/wdk-7.1/asm_hello.htm">hello, world!</a>  
-ch2. <a href="https://steward-fu.github.io/website/driver/wdm/wdk-7.1/asm_file.htm"></a>file(irp)</a>  
+ch2. <a href="https://steward-fu.github.io/website/driver/wdm/wdk-7.1/asm_file.htm">file(irp)</a>  
 
 ## C/C++
 ch0. <a href="https://steward-fu.github.io/website/driver/wdm/wdk-7.1/cpp_setup.htm">prepare</a>  
 ch1. <a href="https://steward-fu.github.io/website/driver/wdm/wdk-7.1/cpp_hello.htm">hello, world!</a>  
-ch2. <a href="https://steward-fu.github.io/website/driver/wdm/wdk-7.1/cpp_file.htm"></a>file(irp)</a>  
+ch2. <a href="https://steward-fu.github.io/website/driver/wdm/wdk-7.1/cpp_file.htm">file(irp)</a>  
   
 ### https://steward-fu.github.io/website/index.htm
