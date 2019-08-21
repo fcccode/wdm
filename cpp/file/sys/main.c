@@ -8,10 +8,9 @@ NTSTATUS AddDevice(PDRIVER_OBJECT pOurDriver, PDEVICE_OBJECT pPhyDevice)
   UNICODE_STRING usDeviceName;
   UNICODE_STRING usSymboName;
 
-  DbgPrint("File operation !");
-  RtlInitUnicodeString(&usDeviceName, L"\\Device\\firstFile");
+  RtlInitUnicodeString(&usDeviceName, L"\\Device\\MyDriver");
   IoCreateDevice(pOurDriver, 0, &usDeviceName, FILE_DEVICE_UNKNOWN, 0, FALSE, &pOurDevice);
-  RtlInitUnicodeString(&usSymboName, L"\\DosDevices\\firstFile");
+  RtlInitUnicodeString(&usSymboName, L"\\DosDevices\\MyDriver");
   IoCreateSymbolicLink(&usSymboName, &usDeviceName);
   gNextDevice = IoAttachDeviceToDeviceStack(pOurDevice, pPhyDevice);
   pOurDevice->Flags&= ~DO_DEVICE_INITIALIZING;
@@ -29,7 +28,7 @@ NTSTATUS IrpPnp(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
   UNICODE_STRING usSymboName;
 
   if(psk->MinorFunction == IRP_MN_REMOVE_DEVICE){
-    RtlInitUnicodeString(&usSymboName, L"\\DosDevices\\firstFile");
+    RtlInitUnicodeString(&usSymboName, L"\\DosDevices\\MyDriver");
     IoDeleteSymbolicLink(&usSymboName);
     IoDetachDevice(gNextDevice);
     IoDeleteDevice(pOurDevice);

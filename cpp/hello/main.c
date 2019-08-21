@@ -7,8 +7,8 @@ NTSTATUS AddDevice(PDRIVER_OBJECT pOurDriver, PDEVICE_OBJECT pPhyDevice)
   PDEVICE_OBJECT pOurDevice=NULL;
   UNICODE_STRING usDeviceName;
 
-  DbgPrint("Hello, world !");
-  RtlInitUnicodeString(&usDeviceName, L"\\Device\\firstWDM");
+  DbgPrint("Hello, world!");
+  RtlInitUnicodeString(&usDeviceName, L"\\Device\\MyDriver");
   IoCreateDevice(pOurDriver, 0, &usDeviceName, FILE_DEVICE_UNKNOWN, 0, FALSE, &pOurDevice);
   pNextDevice = IoAttachDeviceToDeviceStack(pOurDevice, pPhyDevice);
   pOurDevice->Flags&= ~DO_DEVICE_INITIALIZING;
