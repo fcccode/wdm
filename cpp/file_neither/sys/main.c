@@ -1,24 +1,22 @@
 #include <wdm.h>
  
-#define DEV_NAME  L"\\Device\\firstFile-Neither"
-#define SYM_NAME  L"\\DosDevices\\firstFile-Neither"
-#define MSG       "File Operation (DO_NEITHER_IO)"
- 
+#define DEV_NAME L"\\Device\\MyDriver"
+#define SYM_NAME L"\\DosDevices\\MyDriver"
+
 char szBuffer[255]={0};
-PDEVICE_OBJECT gNextDevice=NULL;
+PDEVICE_OBJECT pNextDevice=NULL;
    
 NTSTATUS AddDevice(PDRIVER_OBJECT pOurDriver, PDEVICE_OBJECT pPhyDevice)
 {
   PDEVICE_OBJECT pOurDevice=NULL;
   UNICODE_STRING usDeviceName;
   UNICODE_STRING usSymboName;
- 
-  DbgPrint(MSG);
+
   RtlInitUnicodeString(&usDeviceName, DEV_NAME);
   IoCreateDevice(pOurDriver, 0, &usDeviceName, FILE_DEVICE_UNKNOWN, 0, FALSE, &pOurDevice);
   RtlInitUnicodeString(&usSymboName, SYM_NAME);
   IoCreateSymbolicLink(&usSymboName, &usDeviceName);
-  gNextDevice = IoAttachDeviceToDeviceStack(pOurDevice, pPhyDevice);
+  pNextDevice = IoAttachDeviceToDeviceStack(pOurDevice, pPhyDevice);
   pOurDevice->Flags&= ~DO_DEVICE_INITIALIZING;
   return STATUS_SUCCESS;
 }
@@ -35,11 +33,11 @@ NTSTATUS IrpPnp(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
   if(psk->MinorFunction == IRP_MN_REMOVE_DEVICE){
     RtlInitUnicodeString(&usSymboName, SYM_NAME);
     IoDeleteSymbolicLink(&usSymboName);
-    IoDetachDevice(gNextDevice);
+    IoDetachDevice(pNextDevice);
     IoDeleteDevice(pOurDevice);
   }
   IoSkipCurrentIrpStackLocation(pIrp);
-  return IoCallDriver(gNextDevice, pIrp);
+  return IoCallDriver(pNextDevice, pIrp);
 }
  
 NTSTATUS IrpFile(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
@@ -51,24 +49,23 @@ NTSTATUS IrpFile(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
   switch(psk->MajorFunction){
   case IRP_MJ_CREATE:
     memset(szBuffer, 0, sizeof(szBuffer));
-    DbgPrint("IRP_MJ_CREATE\n");
+    DbgPrint("IRP_MJ_CREATE");
     break;
   case IRP_MJ_READ:
     pBuf = pIrp->UserBuffer;
     Len = psk->Parameters.Read.Length;
     memcpy(pBuf, szBuffer, Len);
-    DbgPrint("IRP_MJ_READ\n");
-    DbgPrint("Buf: %s, Len: %d\n", szBuffer, Len);
+    DbgPrint("IRP_MJ_READ");
     break;
   case IRP_MJ_WRITE:
     pBuf = pIrp->UserBuffer;
     Len = psk->Parameters.Write.Length;
     memcpy(szBuffer, pBuf, Len);
-    DbgPrint("IRP_MJ_WRITE\n");
-    DbgPrint("Buf: %s, Len: %d\n", szBuffer, Len);
+    DbgPrint("IRP_MJ_WRITE");
+    DbgPrint("Buffer: %s, Length: %d", szBuffer, Len);
     break;
   case IRP_MJ_CLOSE:
-    DbgPrint("IRP_MJ_CLOSE\n");
+    DbgPrint("IRP_MJ_CLOSE");
     break;
   }
   IoCompleteRequest(pIrp, IO_NO_INCREMENT);

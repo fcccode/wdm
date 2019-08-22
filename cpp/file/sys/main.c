@@ -42,16 +42,16 @@ NTSTATUS IrpFile(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
   PIO_STACK_LOCATION psk = IoGetCurrentIrpStackLocation(pIrp);
   switch(psk->MajorFunction){
   case IRP_MJ_CREATE:
-    DbgPrint("IRP_MJ_CREATE\n");
+    DbgPrint("IRP_MJ_CREATE");
     break;
   case IRP_MJ_READ:
-    DbgPrint("IRP_MJ_READ\n");
+    DbgPrint("IRP_MJ_READ");
     break;
   case IRP_MJ_WRITE:
-    DbgPrint("IRP_MJ_WRITE\n");
+    DbgPrint("IRP_MJ_WRITE");
     break;
   case IRP_MJ_CLOSE:
-    DbgPrint("IRP_MJ_CLOSE\n");
+    DbgPrint("IRP_MJ_CLOSE");
     break;
   }
   IoCompleteRequest(pIrp, IO_NO_INCREMENT);

@@ -9,8 +9,11 @@ include c:\masm32\include\w2k\ntddkbd.inc
 include c:\masm32\Macros\Strings.mac
 includelib c:\masm32\lib\wxp\i386\ntoskrnl.lib
 
+public DriverEntry
+
 .const
 DEV_NAME word "\","D","e","v","i","c","e","\","M","y","D","r","i","v","e","r",0
+MSG      byte "Hello, world!",0
 
 .data
 pNextDevice PDEVICE_OBJECT 0
@@ -20,7 +23,7 @@ AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
   local pOurDevice:PDEVICE_OBJECT
   local suDevName:UNICODE_STRING
 
-  invoke DbgPrint, $CTA0("Hello, world")
+  invoke DbgPrint, offset MSG
   invoke RtlInitUnicodeString, addr suDevName, offset DEV_NAME
   invoke IoCreateDevice, pOurDriver, 0, addr suDevName, FILE_DEVICE_UNKNOWN, 0, FALSE, addr pOurDevice
   invoke IoAttachDeviceToDeviceStack, pOurDevice, pPhyDevice

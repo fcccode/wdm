@@ -1,34 +1,20 @@
-;/*========================================================================================================
-;//  Basically, all of files downloaded from my website can be modified or redistributed for any purpose.
-;//  It is my honor to share my interesting to everybody.
-;//  If you find any illeage content out from my website, please contact me firstly.
-;//  I will remove all of the illeage parts.
-;//  Thanks :)
-;//   
-;//  Steward Fu
-;//  g9313716@yuntech.edu.tw
-;//  https://steward-fu.github.io/website/index.htm
-;//========================================================================================================*/
 [Version]
-Signature=$WINDOWS NT$
-Class = Ports
-ClassGuid = {4d36e978-e325-11ce-bfc1-08002be10318}
+Signature=$CHICAGO$
+Class=Unknown
 Provider=%MFGNAME%
-DriverVer=12/15/2016,11.59.11.639
-CatalogFile = firstInt29h.cat
-LayoutFile  = firstInt29h.inf
-
-[Manufacturer]
-%MFGNAME%=DeviceList,ntamd64
+DriverVer=8/21/2019,1.0.0.0
  
-[DeviceList.ntamd64]
-%DESCRIPTION%=DriverInstall, *firstInt29h
+[Manufacturer]
+%MFGNAME%=DeviceList
+ 
+[DeviceList]
+%DESCRIPTION%=DriverInstall, *MyDriver
  
 [DestinationDirs]
 DefaultDestDir=10,System32\Drivers
  
 [SourceDisksFiles]
-firstInt29h.sys=1,,,
+main.sys=1,,,
  
 [SourceDisksNames]
 1=%INSTDISK%,,,
@@ -37,16 +23,16 @@ firstInt29h.sys=1,,,
 CopyFiles=DriverCopyFiles
  
 [DriverCopyFiles]
-firstInt29h.sys,,,2
+main.sys,,,2
  
 [DriverInstall.NT.Services]
-AddService=firstInt29h,2,DriverService
+AddService=FILEIO,2,DriverService
  
 [DriverService]
 ServiceType=1
 StartType=3
 ErrorControl=1
-ServiceBinary=%10%\system32\drivers\firstInt29h.sys
+ServiceBinary=%10%\system32\drivers\main.sys
  
 [DriverInstall.NT.HW]
 AddReg=DriverHwAddReg
@@ -54,7 +40,18 @@ AddReg=DriverHwAddReg
 [DriverHwAddReg]
 HKR,,SampleInfo,,""
  
+[DriverInstall]
+AddReg=DriverAddReg
+CopyFiles=DriverCopyFiles
+ 
+[DriverAddReg]
+HKR,,DevLoader,,*ntkern
+HKR,,NTMPDriver,,main.sys
+ 
+[DriverInstall.HW]
+AddReg=DriverHwAddReg
+ 
 [Strings]
-MFGNAME="firstInt29h"
-INSTDISK="firstInt29h Disc"
-DESCRIPTION="firstInt29h"
+MFGNAME="MyDriver"
+INSTDISK="MyDriver Disc"
+DESCRIPTION="MyDriver"

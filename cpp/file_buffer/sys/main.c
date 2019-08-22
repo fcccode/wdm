@@ -1,11 +1,10 @@
 #include <wdm.h>
 
-#define DEV_NAME    L"\\Device\\firstFile-Buffer"
-#define SYM_NAME    L"\\DosDevices\\firstFile-Buffer"
-#define MSG         "File Operation (DO_BUFFERED_IO) !"
+#define DEV_NAME L"\\Device\\MyDriver"
+#define SYM_NAME L"\\DosDevices\\MyDriver"
 
-char gszBuffer[255]={0};
-PDEVICE_OBJECT gNextDevice=NULL;
+char szBuffer[255]={0};
+PDEVICE_OBJECT pNextDevice=NULL;
 
 NTSTATUS AddDevice(PDRIVER_OBJECT pOurDriver, PDEVICE_OBJECT pPhyDevice)
 {
@@ -13,12 +12,11 @@ NTSTATUS AddDevice(PDRIVER_OBJECT pOurDriver, PDEVICE_OBJECT pPhyDevice)
   UNICODE_STRING usDeviceName;
   UNICODE_STRING usSymboName;
 
-  DbgPrint(MSG);
   RtlInitUnicodeString(&usDeviceName, DEV_NAME);
   IoCreateDevice(pOurDriver, 0, &usDeviceName, FILE_DEVICE_UNKNOWN, 0, FALSE, &pOurDevice);
   RtlInitUnicodeString(&usSymboName, SYM_NAME);
   IoCreateSymbolicLink(&usSymboName, &usDeviceName);
-  gNextDevice = IoAttachDeviceToDeviceStack(pOurDevice, pPhyDevice);
+  pNextDevice = IoAttachDeviceToDeviceStack(pOurDevice, pPhyDevice);
   pOurDevice->Flags&= ~DO_DEVICE_INITIALIZING;
   pOurDevice->Flags|= DO_BUFFERED_IO;
   return STATUS_SUCCESS;
@@ -36,11 +34,11 @@ NTSTATUS IrpPnp(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
   if(psk->MinorFunction == IRP_MN_REMOVE_DEVICE){
     RtlInitUnicodeString(&usSymboName, SYM_NAME);
     IoDeleteSymbolicLink(&usSymboName);
-    IoDetachDevice(gNextDevice);
+    IoDetachDevice(pNextDevice);
     IoDeleteDevice(pOurDevice);
   }
   IoSkipCurrentIrpStackLocation(pIrp);
-  return IoCallDriver(gNextDevice, pIrp);
+  return IoCallDriver(pNextDevice, pIrp);
 }
 
 NTSTATUS IrpFile(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
@@ -49,24 +47,24 @@ NTSTATUS IrpFile(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
 
   switch(psk->MajorFunction){
   case IRP_MJ_CREATE:
-    memset(gszBuffer, 0, sizeof(gszBuffer));
-    DbgPrint("IRP_MJ_CREATE\n");
+    memset(szBuffer, 0, sizeof(szBuffer));
+    DbgPrint("IRP_MJ_CREATE");
     break;
   case IRP_MJ_READ:
-    strcpy(pIrp->AssociatedIrp.SystemBuffer, gszBuffer);
-    DbgPrint("IRP_MJ_READ\n");
+    strcpy(pIrp->AssociatedIrp.SystemBuffer, szBuffer);
+    DbgPrint("IRP_MJ_READ");
     pIrp->IoStatus.Status = STATUS_SUCCESS;
-    pIrp->IoStatus.Information = strlen(gszBuffer);
+    pIrp->IoStatus.Information = strlen(szBuffer);
     break;
   case IRP_MJ_WRITE:
-    strcpy(gszBuffer, pIrp->AssociatedIrp.SystemBuffer);
-    DbgPrint("IRP_MJ_WRITE\n");
-    DbgPrint("Buffer: %s\n", gszBuffer);
+    strcpy(szBuffer, pIrp->AssociatedIrp.SystemBuffer);
+    DbgPrint("IRP_MJ_WRITE");
+    DbgPrint("Buffer: %s, Length: %d", szBuffer, psk->Parameters.Write.Length);
     pIrp->IoStatus.Status = STATUS_SUCCESS;
-    pIrp->IoStatus.Information = strlen(gszBuffer);
+    pIrp->IoStatus.Information = strlen(szBuffer);
     break;
   case IRP_MJ_CLOSE:
-    DbgPrint("IRP_MJ_CLOSE\n");
+    DbgPrint("IRP_MJ_CLOSE");
     break;
   }
   IoCompleteRequest(pIrp, IO_NO_INCREMENT);

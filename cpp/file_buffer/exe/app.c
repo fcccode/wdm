@@ -11,13 +11,13 @@ int __cdecl main(int argc, char* argv[])
   DWORD dwRet = 0;
   char szBuffer[255]={0};
 
-  hFile = CreateFile("\\\\.\\firstFile-Buffer", GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+  hFile = CreateFile("\\\\.\\MyDriver", GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
   if(hFile == INVALID_HANDLE_VALUE){
-    printf("failed to open firstFile driver\n");
+    printf("failed to open mydriver");
     return 1;
   }
 
-  strncpy(szBuffer, "Testing Only", sizeof(szBuffer));
+  strncpy(szBuffer, "I am error", sizeof(szBuffer));
   WriteFile(hFile, szBuffer, strlen(szBuffer) + 1, &dwRet, NULL);
   printf("WR: %s\n", szBuffer);
 
