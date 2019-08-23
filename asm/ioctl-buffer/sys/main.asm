@@ -6,7 +6,6 @@ include c:\masm32\include\w2k\ntstatus.inc
 include c:\masm32\include\w2k\ntddk.inc
 include c:\masm32\include\w2k\ntoskrnl.inc
 include c:\masm32\include\w2k\ntddkbd.inc
-include c:\masm32\include\wxp\wdm.inc
 include c:\masm32\Macros\Strings.mac
 includelib c:\masm32\lib\wxp\i386\ntoskrnl.lib
   
@@ -15,15 +14,16 @@ public DriverEntry
 OurDeviceExtension struct
   pNextDev PDEVICE_OBJECT ?
   szBuffer byte 1024 dup(?)
-  dwBufferLength dword ?
 OurDeviceExtension ends
 
-IOCTL_TEST equ CTL_CODE(FILE_DEVICE_UNKNOWN, 800h, METHOD_BUFFERED, FILE_ANY_ACCESS)
+IOCTL_GET  equ CTL_CODE(FILE_DEVICE_UNKNOWN, 800h, METHOD_BUFFERED, FILE_ANY_ACCESS)
+IOCTL_SET  equ CTL_CODE(FILE_DEVICE_UNKNOWN, 801h, METHOD_BUFFERED, FILE_ANY_ACCESS)
  
 .const
 DEV_NAME word "\","D","e","v","i","c","e","\","M","y","D","r","i","v","e","r",0
 SYM_NAME word "\","D","o","s","D","e","v","i","c","e","s","\","M","y","D","r","i","v","e","r",0
-SHOW_MSG byte "IOCTL_TEST",0
+MSG_GET  byte "IOCTL_GET",0
+MSG_SET  byte "IOCTL_SET",0
 
 .code
 IrpOpenClose proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
@@ -46,6 +46,7 @@ IrpOpenClose endp
 IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   local dwLen: DWORD
   local pdx:PTR OurDeviceExtension
+  local pBuf:DWORD
 
   push 0
   pop dwLen
@@ -56,8 +57,34 @@ IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
 
   IoGetCurrentIrpStackLocation pIrp
   mov eax, (IO_STACK_LOCATION PTR [eax]).Parameters.DeviceIoControl.IoControlCode
-  .if eax == IOCTL_TEST
-    invoke DbgPrint, offset SHOW_MSG
+  .if eax == IOCTL_GET
+    invoke DbgPrint, offset MSG_GET
+    mov eax, pIrp
+    push (_IRP PTR [eax]).AssociatedIrp.SystemBuffer
+    pop pBuf
+
+    mov eax, pdx
+    invoke strcpy, pBuf, addr (OurDeviceExtension PTR [eax]).szBuffer
+    
+    mov eax, pdx
+    invoke strlen, addr (OurDeviceExtension PTR [eax]).szBuffer
+    inc eax
+    push eax
+    pop dwLen
+  .elseif eax == IOCTL_SET
+    invoke DbgPrint, offset MSG_SET
+
+    IoGetCurrentIrpStackLocation pIrp
+    push (IO_STACK_LOCATION PTR [eax]).Parameters.DeviceIoControl.InputBufferLength 
+    pop dwLen
+
+    mov eax, pIrp
+    push (_IRP PTR [eax]).AssociatedIrp.SystemBuffer
+    pop pBuf
+
+    mov eax, pdx
+    invoke memcpy, addr (OurDeviceExtension PTR [eax]).szBuffer, pBuf, dwLen
+    invoke DbgPrint, $CTA0("Buffer: %s, Length: %d"), pBuf, dwLen
   .endif
 
   mov eax, pIrp
@@ -69,7 +96,7 @@ IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpIOCTL endp
 
-IrpPnP proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+IrpPnp proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   local pdx:PTR OurDeviceExtension
   local szSymName:UNICODE_STRING
 
@@ -97,7 +124,7 @@ IrpPnP proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   mov eax, pdx
   invoke IoCallDriver, (OurDeviceExtension PTR [eax]).pNextDev, pIrp
   ret
-IrpPnP endp
+IrpPnp endp
 
 AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
   local pOurDevice:PDEVICE_OBJECT
@@ -134,7 +161,7 @@ Unload endp
 
 DriverEntry proc pOurDriver:PDRIVER_OBJECT, pOurRegistry:PUNICODE_STRING
   mov eax, pOurDriver
-  mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_PNP    * (sizeof PVOID)], offset IrpPnP
+  mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_PNP    * (sizeof PVOID)], offset IrpPnp
   mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_CREATE * (sizeof PVOID)], offset IrpOpenClose
   mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_CLOSE  * (sizeof PVOID)], offset IrpOpenClose
   mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_DEVICE_CONTROL * (sizeof PVOID)], offset IrpIOCTL

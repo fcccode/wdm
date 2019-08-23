@@ -1,16 +1,19 @@
 #include <wdm.h>
 
+#define IOCTL_SET CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IOCTL_GET CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
 #define DEV_NAME L"\\Device\\MyDriver"
 #define SYM_NAME L"\\DosDevices\\MyDriver"
-#define IOCTL_TEST CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS) 
 
+char szBuffer[255]={0};
 PDEVICE_OBJECT pNextDevice=NULL;
 
 NTSTATUS AddDevice(PDRIVER_OBJECT pOurDriver, PDEVICE_OBJECT pPhyDevice)
 {
-  UNICODE_STRING usSymboName;
-  UNICODE_STRING usDeviceName;
   PDEVICE_OBJECT pOurDevice=NULL;
+  UNICODE_STRING usDeviceName;
+  UNICODE_STRING usSymboName;
 
   RtlInitUnicodeString(&usDeviceName, DEV_NAME);
   IoCreateDevice(pOurDriver, 0, &usDeviceName, FILE_DEVICE_UNKNOWN, 0, FALSE, &pOurDevice);
@@ -24,6 +27,7 @@ NTSTATUS AddDevice(PDRIVER_OBJECT pOurDriver, PDEVICE_OBJECT pPhyDevice)
   
 void Unload(PDRIVER_OBJECT pOurDriver)
 {
+  pOurDriver = pOurDriver;
 }
 
 NTSTATUS IrpPnp(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
@@ -43,13 +47,24 @@ NTSTATUS IrpPnp(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
 
 NTSTATUS IrpIOCTL(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
 {
+  ULONG Len=0;
   PIO_STACK_LOCATION psk = IoGetCurrentIrpStackLocation(pIrp);
 
   switch(psk->Parameters.DeviceIoControl.IoControlCode){
-  case IOCTL_TEST:
-    DbgPrint("IOCTL_TEST");
+  case IOCTL_SET:
+    DbgPrint("IOCTL_SET");
+    Len = psk->Parameters.DeviceIoControl.InputBufferLength;
+    memcpy(szBuffer, pIrp->AssociatedIrp.SystemBuffer, Len);
+    DbgPrint("Buffer: %s, Length: %d", szBuffer, Len);
+    break;
+  case IOCTL_GET:
+    DbgPrint("IOCTL_GET");
+    Len = strlen(szBuffer)+1;
+    memcpy(pIrp->AssociatedIrp.SystemBuffer, szBuffer, Len);
     break;
   }
+  pIrp->IoStatus.Status = STATUS_SUCCESS;
+  pIrp->IoStatus.Information = Len;
   IoCompleteRequest(pIrp, IO_NO_INCREMENT);
   return STATUS_SUCCESS;
 }
@@ -69,7 +84,7 @@ NTSTATUS IrpFile(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
   IoCompleteRequest(pIrp, IO_NO_INCREMENT);
   return STATUS_SUCCESS;
 }
-  
+
 NTSTATUS DriverEntry(PDRIVER_OBJECT pOurDriver, PUNICODE_STRING pOurRegistry)
 {
   pOurDriver->MajorFunction[IRP_MJ_PNP] = IrpPnp;
