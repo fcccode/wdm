@@ -1,14 +1,3 @@
-;//========================================================================================================
-;//  Basically, all of files downloaded from my website can be modified or redistributed for any purpose.
-;//  It is my honor to share my interesting to everybody.
-;//  If you find any illeage content out from my website, please contact me firstly.
-;//  I will remove all of the illeage parts.
-;//  Thanks :)
-;//  
-;//  Steward Fu
-;//  g9313716@yuntech.edu.tw
-;//  https://steward-fu.github.io/website/index.htm
-;//========================================================================================================*/
 .386p
 .model flat, stdcall
 option casemap:none
@@ -23,28 +12,28 @@ includelib c:\masm32\lib\wxp\i386\ntoskrnl.lib
 public DriverEntry
 
 OurDeviceExtension struct
-  pNextDev    PDEVICE_OBJECT ?
-  dwTimerCnt  DWORD ?       
+  pNextDev   PDEVICE_OBJECT ?
+  dwTimerCnt DWORD ?       
 OurDeviceExtension ends
 
-IOCTL_TIMER_START  equ CTL_CODE(FILE_DEVICE_UNKNOWN, 800h, METHOD_BUFFERED,    FILE_ANY_ACCESS)
-IOCTL_TIMER_STOP   equ CTL_CODE(FILE_DEVICE_UNKNOWN, 801h, METHOD_BUFFERED,    FILE_ANY_ACCESS)
+IOCTL_START equ CTL_CODE(FILE_DEVICE_UNKNOWN, 800h, METHOD_BUFFERED, FILE_ANY_ACCESS)
+IOCTL_STOP  equ CTL_CODE(FILE_DEVICE_UNKNOWN, 801h, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 .const
-DEV_NAME word "\","D","e","v","i","c","e","\","f","i","r","s","t","T","i","m","e","r","-","I","O",0
-SYM_NAME word "\","D","o","s","D","e","v","i","c","e","s","\","f","i","r","s","t","T","i","m","e","r","-","I","O",0
+DEV_NAME  word "\","D","e","v","i","c","e","\","M","y","D","r","i","v","e","r",0
+SYM_NAME  word "\","D","o","s","D","e","v","i","c","e","s","\","M","y","D","r","i","v","e","r",0
+MSG_START byte "IOCTL_START",0
+MSG_STOP  byte "IOCTL_STOP",0
 
 .code
-;//*** timer routine
 OnTimer proc pOurDevice:PDEVICE_OBJECT, pContext:PVOID
-	mov eax, pOurDevice
-	mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
-	inc (OurDeviceExtension PTR[eax]).dwTimerCnt
-	invoke DbgPrint, $CTA0("IoTimer: %d\n"), (OurDeviceExtension PTR[eax]).dwTimerCnt
-	ret
+  mov eax, pOurDevice
+  mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
+  inc (OurDeviceExtension PTR[eax]).dwTimerCnt
+  invoke DbgPrint, $CTA0("IoTimer: %d\n"), (OurDeviceExtension PTR[eax]).dwTimerCnt
+  ret
 OnTimer endp
 
-;//*** process file irp
 IrpOpenClose proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   IoGetCurrentIrpStackLocation pIrp
   movzx ebx, (IO_STACK_LOCATION PTR [eax]).MajorFunction
@@ -62,7 +51,6 @@ IrpOpenClose proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpOpenClose endp
 
-;//*** process ioctl irp
 IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   local dwLen: DWORD
   local pdx:PTR OurDeviceExtension
@@ -79,13 +67,13 @@ IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
 
   IoGetCurrentIrpStackLocation pIrp
   mov eax, (IO_STACK_LOCATION PTR [eax]).Parameters.DeviceIoControl.IoControlCode
-  .if eax == IOCTL_TIMER_START
-    invoke DbgPrint, $CTA0("_IOCTL_TIMER_START")
+  .if eax == IOCTL_START
+    invoke DbgPrint, offset MSG_START
     mov eax, pdx
-		mov (OurDeviceExtension PTR[eax]).dwTimerCnt, 0
-		invoke IoStartTimer, pOurDevice
-  .elseif eax == IOCTL_TIMER_STOP
-    invoke DbgPrint, $CTA0("_IOCTL_TIMER_STOP")
+    mov (OurDeviceExtension PTR[eax]).dwTimerCnt, 0
+    invoke IoStartTimer, pOurDevice
+  .elseif eax == IOCTL_STOP
+    invoke DbgPrint, offset MSG_STOP
     invoke IoStopTimer, pOurDevice
   .endif
 
@@ -98,8 +86,7 @@ IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpIOCTL endp
 
-;//*** process pnp irp
-IrpPnP proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
+IrpPnp proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   local pdx:PTR OurDeviceExtension
   local szSymName:UNICODE_STRING
 
@@ -118,7 +105,6 @@ IrpPnP proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
     mov eax, pIrp
     mov (_IRP PTR [eax]).IoStatus.Status, STATUS_SUCCESS
 
-    ;// free allocated resources
     mov eax, pdx
     invoke IoDetachDevice, (OurDeviceExtension PTR [eax]).pNextDev
     invoke IoDeleteDevice, pDevObj
@@ -128,18 +114,15 @@ IrpPnP proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   mov eax, pdx
   invoke IoCallDriver, (OurDeviceExtension PTR [eax]).pNextDev, pIrp
   ret
-IrpPnP endp
+IrpPnp endp
 
-;//*** system will vist this routine when it needs to add new device
 AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
   local pOurDevice:PDEVICE_OBJECT
   local suDevName:UNICODE_STRING
   local szSymName:UNICODE_STRING
 
-  invoke DbgPrint, $CTA0("MASM32 WDM driver tutorial for Timer-IO")
   invoke RtlInitUnicodeString, addr suDevName, offset DEV_NAME
   invoke RtlInitUnicodeString, addr szSymName, offset SYM_NAME
-
   invoke IoCreateDevice, pOurDriver, sizeof OurDeviceExtension, addr suDevName, FILE_DEVICE_UNKNOWN, 0, FALSE, addr pOurDevice
   .if eax == STATUS_SUCCESS
     invoke IoAttachDeviceToDeviceStack, pOurDevice, pPhyDevice
@@ -162,25 +145,23 @@ AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
   .endif
   ret
 AddDevice endp
-  
-;//*** it is time to unload our driver
+
 Unload proc pOurDriver:PDRIVER_OBJECT
-	xor eax, eax
-	ret
+  xor eax, eax
+  ret
 Unload endp
 
-;//*** driver entry
 DriverEntry proc pOurDriver:PDRIVER_OBJECT, pOurRegistry:PUNICODE_STRING
-	mov eax, pOurDriver
-	mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_PNP    * (sizeof PVOID)], offset IrpPnP
-	mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_CREATE * (sizeof PVOID)], offset IrpOpenClose
-	mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_CLOSE  * (sizeof PVOID)], offset IrpOpenClose
-	mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_DEVICE_CONTROL * (sizeof PVOID)], offset IrpIOCTL
-	mov (DRIVER_OBJECT PTR [eax]).DriverUnload, offset Unload
-	mov eax, (DRIVER_OBJECT PTR [eax]).DriverExtension
-	mov (DRIVER_EXTENSION PTR [eax]).AddDevice, AddDevice
-	mov eax, STATUS_SUCCESS
-	ret
+  mov eax, pOurDriver
+  mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_PNP    * (sizeof PVOID)], offset IrpPnp
+  mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_CREATE * (sizeof PVOID)], offset IrpOpenClose
+  mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_CLOSE  * (sizeof PVOID)], offset IrpOpenClose
+  mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_DEVICE_CONTROL * (sizeof PVOID)], offset IrpIOCTL
+  mov (DRIVER_OBJECT PTR [eax]).DriverUnload, offset Unload
+  mov eax, (DRIVER_OBJECT PTR [eax]).DriverExtension
+  mov (DRIVER_EXTENSION PTR [eax]).AddDevice, AddDevice
+  mov eax, STATUS_SUCCESS
+  ret
 DriverEntry endp
 end DriverEntry
 .end
