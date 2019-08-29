@@ -1,14 +1,3 @@
-;//========================================================================================================
-;//  Basically, all of files downloaded from my website can be modified or redistributed for any purpose.
-;//  It is my honor to share my interesting to everybody.
-;//  If you find any illeage content out from my website, please contact me firstly.
-;//  I will remove all of the illeage parts.
-;//  Thanks :)
-;//  
-;//  Steward Fu
-;//  g9313716@yuntech.edu.tw
-;//  https://steward-fu.github.io/website/index.htm
-;//========================================================================================================*/
 .386p
 .model flat, stdcall
 option casemap:none
@@ -27,221 +16,217 @@ includelib c:\masm32\lib\wxp\i386\csq.lib
 public DriverEntry
 
 OurDeviceExtension struct
-	pNextDev    PDEVICE_OBJECT ?
-	stQueue         LIST_ENTRY      <>
-  stTimeDPC       KDPC            <>
-  stTime          KTIMER          <>
-  stCsq           IO_CSQ          <>
-  stQueueLock     KSPIN_LOCK      <>
+  pNextDev PDEVICE_OBJECT ?
+  stQueue  LIST_ENTRY <>
+  stDPC    KDPC <>
+  stTime   KTIMER <>
+  stCsq    IO_CSQ <>
+  stLock   KSPIN_LOCK <>
 OurDeviceExtension ends
 
-IOCTL_QUEUE_IT    equ CTL_CODE(FILE_DEVICE_UNKNOWN, 800h, METHOD_BUFFERED,    FILE_ANY_ACCESS)
-IOCTL_PROCESS_IT  equ CTL_CODE(FILE_DEVICE_UNKNOWN, 801h, METHOD_BUFFERED,    FILE_ANY_ACCESS)
+IOCTL_QUEUE   equ CTL_CODE(FILE_DEVICE_UNKNOWN, 800h, METHOD_BUFFERED, FILE_ANY_ACCESS)
+IOCTL_PROCESS equ CTL_CODE(FILE_DEVICE_UNKNOWN, 801h, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 .const
-DEV_NAME word "\","D","e","v","i","c","e","\","f","i","r","s","t","C","S","Q",0
-SYM_NAME word "\","D","o","s","D","e","v","i","c","e","s","\","f","i","r","s","t","C","S","Q",0
+DEV_NAME    word "\","D","e","v","i","c","e","\","M","y","D","r","i","v","e","r",0
+SYM_NAME    word "\","D","o","s","D","e","v","i","c","e","s","\","M","y","D","r","i","v","e","r",0
+MSG_QUEUE   byte "IOCTL_QUEUE",0
+MSG_PROCESS byte "IOCTL_PROCESS",0
 
 .code
-;//*** insert csq
 CsqInsertIrp proc uses ebx ecx pCsqInfo:PIO_CSQ, pIrp:PIRP
   local pdx:PTR DevExt
+  
+  invoke DbgPrint, $CTA0("CsqInsertIrp")
+  
+  ;// CONTAINING_RECORD 
+  mov eax, pCsqInfo
+  sub eax, OurDeviceExtension.stCsq
+  mov pdx, eax
 
-	invoke DbgPrint, $CTA0("CsqInsertIrp")
-	;// CONTAINING_RECORD 
-	mov eax, pCsqInfo
-	sub eax, OurDeviceExtension.stCsq
-	mov pdx, eax
-	;// Queue this Irp
-	mov ebx, pdx
-	lea ebx, (OurDeviceExtension PTR [ebx]).stQueue
-	mov ecx, pIrp
-	lea ecx, (_IRP PTR [ecx]).Tail.Overlay.ListEntry
-	InsertTailList ebx, ecx
-	ret
+  mov ebx, pdx
+  lea ebx, (OurDeviceExtension PTR [ebx]).stQueue
+  mov ecx, pIrp
+  lea ecx, (_IRP PTR [ecx]).Tail.Overlay.ListEntry
+  InsertTailList ebx, ecx
+  ret
 CsqInsertIrp endp
 
-;//*** remove csq
 CsqRemoveIrp proc pCsqInfo:PIO_CSQ, pIrp:PIRP
-    invoke DbgPrint, $CTA0("CsqRemoveIrp")
-    mov eax, pIrp
-    lea eax, (_IRP PTR [eax]).Tail.Overlay.ListEntry
-    RemoveEntryList eax
-    ret
+  invoke DbgPrint, $CTA0("CsqRemoveIrp")
+  mov eax, pIrp
+  lea eax, (_IRP PTR [eax]).Tail.Overlay.ListEntry
+  RemoveEntryList eax
+  ret
 CsqRemoveIrp endp
 
-;//*** complete cancel irp
 CsqCompleteCanceledIrp proc pCsqInfo:PIO_CSQ, pIrp:PIRP
-	local pdx:PTR OurDeviceExtension
-	
-	invoke DbgPrint, $CTA0("CsqCompleteCanceledIrp")
-	
-	; CONTAINING_RECORD 
-	mov eax, pCsqInfo
-	sub eax, OurDeviceExtension.stCsq
-	mov pdx, eax
-	; Complete Irp
-	mov eax, pIrp
-	mov (_IRP PTR [eax]).IoStatus.Status, STATUS_CANCELLED
-	push 0
-	pop (_IRP PTR [eax]).IoStatus.Information 
-	fastcall IofCompleteRequest, eax, IO_NO_INCREMENT
-	ret
+  local pdx:PTR OurDeviceExtension
+  
+  invoke DbgPrint, $CTA0("CsqCompleteCanceledIrp")
+  
+  ;// CONTAINING_RECORD 
+  mov eax, pCsqInfo
+  sub eax, OurDeviceExtension.stCsq
+  mov pdx, eax
+
+  mov eax, pIrp
+  mov (_IRP PTR [eax]).IoStatus.Status, STATUS_CANCELLED
+  push 0
+  pop (_IRP PTR [eax]).IoStatus.Information 
+  fastcall IofCompleteRequest, eax, IO_NO_INCREMENT
+  ret
 CsqCompleteCanceledIrp endp 
 
-;//*** next csq
 CsqPeekNextIrp proc uses ebx pCsqInfo:PIO_CSQ, pIrp:PIRP, pPeekContext:PVOID
   local pdx:PTR OurDeviceExtension
-	local listHead:PTR LIST_ENTRY
-	local nextEntry:PTR LIST_ENTRY
-	local nextIrp:PTR _IRP
-	local irpStack:PIO_STACK_LOCATION
-	
-	invoke DbgPrint, $CTA0("CsqPeekNextIrp")
-	mov nextIrp, NULL
-	; CONTAINING_RECORD 
-	mov eax, pCsqInfo
-	sub eax, OurDeviceExtension.stCsq
-	mov pdx, eax
-	; Peek next Irp
-	mov eax, pdx
-	lea eax, (OurDeviceExtension PTR [eax]).stQueue
-	mov listHead, eax
-	
-	mov eax, pIrp
-	.if eax == NULL
-		mov eax, listHead
-		push (LIST_ENTRY PTR [eax]).Flink
-		pop nextEntry 
-	.elseif
-		mov eax, pIrp
-		push (_IRP PTR [eax]).Tail.Overlay.ListEntry.Flink
-		pop nextEntry 
-	.endif
-	
-	mov eax, nextEntry
-	mov ebx, listHead
-	.while eax != ebx
-		; nextIrp = CONTAINING_RECORD(nextEntry, IRP, Tail.Overlay.ListEntry)
-		mov eax, nextEntry
-		sub eax, _IRP.Tail.Overlay.ListEntry
-		mov nextIrp, eax
-		; irpStack = IoGetCurrentIrpStackLocation(nextIrp)
-		IoGetCurrentIrpStackLocation nextIrp
-		mov irpStack, eax
-		
-		mov eax, pPeekContext
-		.if eax != NULL
-			mov eax, irpStack
-			mov eax, (IO_STACK_LOCATION PTR [eax]).FileObject
-			mov ebx, pPeekContext
-			.if eax == ebx
-			  .break
-			.endif
-		.elseif
-			.break
-		.endif
-		
-		mov nextIrp, NULL
-		mov eax, nextEntry
-		mov eax, (LIST_ENTRY PTR [eax]).Flink
-		mov nextEntry, eax
-		
-		mov eax, nextEntry
-		mov ebx, listHead
-	.endw
-	
-	mov eax, nextIrp
-	ret
+  local listHead:PTR LIST_ENTRY
+  local nextEntry:PTR LIST_ENTRY
+  local nextIrp:PTR _IRP
+  local irpStack:PIO_STACK_LOCATION
+  
+  invoke DbgPrint, $CTA0("CsqPeekNextIrp")
+  mov nextIrp, NULL
+  
+  ; CONTAINING_RECORD 
+  mov eax, pCsqInfo
+  sub eax, OurDeviceExtension.stCsq
+  mov pdx, eax
+  
+  mov eax, pdx
+  lea eax, (OurDeviceExtension PTR [eax]).stQueue
+  mov listHead, eax
+  
+  mov eax, pIrp
+  .if eax == NULL
+    mov eax, listHead
+    push (LIST_ENTRY PTR [eax]).Flink
+    pop nextEntry 
+  .elseif
+    mov eax, pIrp
+    push (_IRP PTR [eax]).Tail.Overlay.ListEntry.Flink
+    pop nextEntry 
+  .endif
+  
+  mov eax, nextEntry
+  mov ebx, listHead
+  .while eax != ebx
+    ; nextIrp = CONTAINING_RECORD(nextEntry, IRP, Tail.Overlay.ListEntry)
+    mov eax, nextEntry
+    sub eax, _IRP.Tail.Overlay.ListEntry
+    mov nextIrp, eax
+
+    IoGetCurrentIrpStackLocation nextIrp
+    mov irpStack, eax
+    
+    mov eax, pPeekContext
+    .if eax != NULL
+      mov eax, irpStack
+      mov eax, (IO_STACK_LOCATION PTR [eax]).FileObject
+      mov ebx, pPeekContext
+      .if eax == ebx
+        .break
+      .endif
+    .elseif
+      .break
+    .endif
+    
+    mov nextIrp, NULL
+    mov eax, nextEntry
+    mov eax, (LIST_ENTRY PTR [eax]).Flink
+    mov nextEntry, eax
+    
+    mov eax, nextEntry
+    mov ebx, listHead
+  .endw
+  mov eax, nextIrp
+  ret
 CsqPeekNextIrp endp
 
-;//*** lock csq
 CsqAcquireLock proc uses ecx pCsqInfo:PIO_CSQ, pIrql:PKIRQL
-	local pdx:PTR OurDeviceExtension
-	
-	invoke DbgPrint, $CTA0("CsqAcquireLock")
-	
-	; CONTAINING_RECORD 
-	mov eax, pCsqInfo
-	sub eax, OurDeviceExtension.stCsq
-	mov pdx, eax
-	; Acquire spinlock
-	mov eax, pdx
-	lea ecx, (OurDeviceExtension PTR [eax]).stQueueLock
-	fastcall KfAcquireSpinLock, ecx
-	mov ecx, pIrql
-	mov [ecx], al
-	ret
+  local pdx:PTR OurDeviceExtension
+  
+  invoke DbgPrint, $CTA0("CsqAcquireLock")
+  
+  ; CONTAINING_RECORD 
+  mov eax, pCsqInfo
+  sub eax, OurDeviceExtension.stCsq
+  mov pdx, eax
+
+  mov eax, pdx
+  lea ecx, (OurDeviceExtension PTR [eax]).stLock
+  fastcall KfAcquireSpinLock, ecx
+  mov ecx, pIrql
+  mov [ecx], al
+  ret
 CsqAcquireLock endp
 
-;//*** release csq
 CsqReleaseLock proc uses ecx edx pCsqInfo:PIO_CSQ, Irql:KIRQL
-	local pdx:PTR DevExt
-	
-	; CONTAINING_RECORD 
-	mov eax, pCsqInfo
-	sub eax, OurDeviceExtension.stCsq
-	mov pdx, eax
-	; Relase spinlock
-	mov dl, Irql
-	mov eax, pdx
-	lea ecx, (OurDeviceExtension PTR [eax]).stQueueLock
-	.if dl == DISPATCH_LEVEL
-		fastcall KefReleaseSpinLockFromDpcLevel, ecx
-		push eax
-		invoke DbgPrint, $CTA0("CsqReleaseLock at DPC level\n")
-		pop eax
-	.else
-		and edx, 0FFh
-		fastcall KfReleaseSpinLock, ecx, edx
-		push eax
-		invoke DbgPrint, $CTA0("CsqReleaseLock at Passive level\n")
-		pop eax
-	.endif
-	ret
+  local pdx:PTR DevExt
+  
+  ; CONTAINING_RECORD 
+  mov eax, pCsqInfo
+  sub eax, OurDeviceExtension.stCsq
+  mov pdx, eax
+
+  mov dl, Irql
+  mov eax, pdx
+  lea ecx, (OurDeviceExtension PTR [eax]).stLock
+  .if dl == DISPATCH_LEVEL
+    fastcall KefReleaseSpinLockFromDpcLevel, ecx
+    push eax
+    invoke DbgPrint, $CTA0("CsqReleaseLock at DPC level\n")
+    pop eax
+  .else
+    and edx, 0FFh
+    fastcall KfReleaseSpinLock, ecx, edx
+    push eax
+    invoke DbgPrint, $CTA0("CsqReleaseLock at Passive level\n")
+    pop eax
+  .endif
+  ret
 CsqReleaseLock endp
 
-;//*** timer routine
 OnTimer proc uses ebx pDpc:PKDPC, pContext:PVOID, pArg1:PVOID, PArg2:PVOID
-	mov eax, pContext
-	mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
-	lea eax, (OurDeviceExtension PTR [eax]).stQueue
-	IsListEmpty eax
-	.if eax == TRUE
-		mov eax, pContext
-		mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
-		invoke KeCancelTimer, addr (OurDeviceExtension PTR [eax]).stTime
-		invoke DbgPrint, $CTA0("OnTimer: Process successfully")
-	.else
-		mov eax, pContext
-		mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
-		lea eax, (OurDeviceExtension PTR [eax]).stQueue
-		RemoveHeadList eax
-		; CONTAINING_RECORD 
-		sub eax, _IRP.Tail.Overlay.ListEntry
-		mov bl, (_IRP PTR [eax]).Cancel
-		; complete queued Irp if the cancel bit isn't TRUE
-		.if bl != TRUE
-			mov (_IRP PTR [eax]).IoStatus.Status, STATUS_SUCCESS
-			push 0
-			pop (_IRP PTR [eax]).IoStatus.Information
-			fastcall IofCompleteRequest, eax, IO_NO_INCREMENT
-			mov eax, STATUS_SUCCESS
-			invoke DbgPrint, $CTA0("OnTimer: Process Irp")
-		.else
-			mov (_IRP PTR [eax]).CancelRoutine, NULL
-			mov (_IRP PTR [eax]).IoStatus.Status, STATUS_CANCELLED
-			push 0
-			pop (_IRP PTR [eax]).IoStatus.Information
-			fastcall IofCompleteRequest, eax, IO_NO_INCREMENT
-			mov eax, STATUS_CANCELLED
-			invoke DbgPrint, $CTA0("OnTimer: Cancel Irp")
-		.endif
-	.endif
-	ret
+  mov eax, pContext
+  mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
+  lea eax, (OurDeviceExtension PTR [eax]).stQueue
+  IsListEmpty eax
+  .if eax == TRUE
+    mov eax, pContext
+    mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
+    invoke KeCancelTimer, addr (OurDeviceExtension PTR [eax]).stTime
+    invoke DbgPrint, $CTA0("Finish")
+  .else
+    mov eax, pContext
+    mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
+    lea eax, (OurDeviceExtension PTR [eax]).stQueue
+    RemoveHeadList eax
+    
+    ; CONTAINING_RECORD 
+    sub eax, _IRP.Tail.Overlay.ListEntry
+    mov bl, (_IRP PTR [eax]).Cancel
+
+    .if bl != TRUE
+      mov (_IRP PTR [eax]).IoStatus.Status, STATUS_SUCCESS
+      push 0
+      pop (_IRP PTR [eax]).IoStatus.Information
+      fastcall IofCompleteRequest, eax, IO_NO_INCREMENT
+      mov eax, STATUS_SUCCESS
+      invoke DbgPrint, $CTA0("Complete Irp")
+    .else
+      mov (_IRP PTR [eax]).CancelRoutine, NULL
+      mov (_IRP PTR [eax]).IoStatus.Status, STATUS_CANCELLED
+      push 0
+      pop (_IRP PTR [eax]).IoStatus.Information
+      fastcall IofCompleteRequest, eax, IO_NO_INCREMENT
+      mov eax, STATUS_CANCELLED
+      invoke DbgPrint, $CTA0("Cancel Irp")
+    .endif
+  .endif
+  ret
 OnTimer endp
 
-;//*** process file irp
 IrpOpenClose proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   IoGetCurrentIrpStackLocation pIrp
   movzx ebx, (IO_STACK_LOCATION PTR [eax]).MajorFunction
@@ -259,14 +244,9 @@ IrpOpenClose proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpOpenClose endp
 
-;//*** process ioctl irp
 IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
-	local dwLen: DWORD
-	local pdx:PTR Dev_Ext
-	local stTimePeriod:LARGE_INTEGER
-
-  push 0
-  pop dwLen
+  local pdx:PTR Dev_Ext
+  local stTimePeriod:LARGE_INTEGER
 
   mov eax, pOurDevice
   push (DEVICE_OBJECT PTR [eax]).DeviceExtension
@@ -274,33 +254,32 @@ IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
 
   IoGetCurrentIrpStackLocation pIrp
   mov eax, (IO_STACK_LOCATION PTR [eax]).Parameters.DeviceIoControl.IoControlCode
-  .if eax == IOCTL_QUEUE_IT
-    invoke DbgPrint, $CTA0("_IOCTL_QUEUE_IT")
+  .if eax == IOCTL_QUEUE
+    invoke DbgPrint, offset MSG_QUEUE
     
-		mov ebx, pdx
-		lea ebx, (OurDeviceExtension PTR [ebx]).stCsq
-		invoke IoCsqInsertIrp, ebx, pIrp, NULL
-		mov eax, STATUS_PENDING
-		ret
-  .elseif eax == IOCTL_PROCESS_IT
-    invoke DbgPrint, $CTA0("_IOCTL_PROCESS_IT")
-		or stTimePeriod.HighPart, -1
-		mov stTimePeriod.LowPart, -10000000
-		mov ebx, pdx
-		invoke KeSetTimerEx, addr (OurDeviceExtension PTR [ebx]).stTime, stTimePeriod.LowPart, stTimePeriod.HighPart, 1000, addr (OurDeviceExtension PTR [ebx]).stTimeDPC
+    mov ebx, pdx
+    lea ebx, (OurDeviceExtension PTR [ebx]).stCsq
+    invoke IoCsqInsertIrp, ebx, pIrp, NULL
+    mov eax, STATUS_PENDING
+    ret
+  .elseif eax == IOCTL_PROCESS
+    invoke DbgPrint, offset MSG_PROCESS
+    or stTimePeriod.HighPart, -1
+    mov stTimePeriod.LowPart, -10000000
+    mov ebx, pdx
+    invoke KeSetTimerEx, addr (OurDeviceExtension PTR [ebx]).stTime, stTimePeriod.LowPart, stTimePeriod.HighPart, 1000, addr (OurDeviceExtension PTR [ebx]).stDPC
   .endif
 
   mov eax, pIrp
   mov (_IRP PTR [eax]).IoStatus.Status, STATUS_SUCCESS
-  push dwLen
+  push 0
   pop (_IRP PTR [eax]).IoStatus.Information 
   fastcall IofCompleteRequest, pIrp, IO_NO_INCREMENT
   mov eax, STATUS_SUCCESS
   ret
 IrpIOCTL endp
 
-;//*** process pnp irp
-IrpPnP proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
+IrpPnp proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   local pdx:PTR OurDeviceExtension
   local szSymName:UNICODE_STRING
 
@@ -328,18 +307,15 @@ IrpPnP proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   mov eax, pdx
   invoke IoCallDriver, (OurDeviceExtension PTR [eax]).pNextDev, pIrp
   ret
-IrpPnP endp
+IrpPnp endp
 
-;//*** system will vist this routine when it needs to add new device
 AddDevice proc uses ebx pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
   local pOurDevice:PDEVICE_OBJECT
   local suDevName:UNICODE_STRING
   local szSymName:UNICODE_STRING
 
-  invoke DbgPrint, $CTA0("MASM32 WDM driver tutorial for Cancel-Safe IRP Queue(CSQ)")
   invoke RtlInitUnicodeString, addr suDevName, offset DEV_NAME
   invoke RtlInitUnicodeString, addr szSymName, offset SYM_NAME
-
   invoke IoCreateDevice, pOurDriver, sizeof OurDeviceExtension, addr suDevName, FILE_DEVICE_UNKNOWN, 0, FALSE, addr pOurDevice
   .if eax == STATUS_SUCCESS
     invoke IoAttachDeviceToDeviceStack, pOurDevice, pPhyDevice
@@ -353,28 +329,24 @@ AddDevice proc uses ebx pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
       or (DEVICE_OBJECT PTR [eax]).Flags, DO_BUFFERED_IO
       and (DEVICE_OBJECT PTR [eax]).Flags, not DO_DEVICE_INITIALIZING
       mov eax, STATUS_SUCCESS
-      
-      ;// initialize queue
-			mov ebx, pOurDevice
-			mov ebx, (DEVICE_OBJECT PTR [ebx]).DeviceExtension
-			lea ebx, (OurDeviceExtension PTR [ebx]).stQueue
-			InitializeListHead ebx
-			
-			;// initialize timer
-			mov eax, pOurDevice
-			mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
-			invoke KeInitializeTimer, addr (OurDeviceExtension ptr [eax]).stTime
-			
-			;// initialize dpc
-			mov eax, pOurDevice
-			mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
-			invoke KeInitializeDpc, addr (OurDeviceExtension ptr [eax]).stTimeDPC, offset OnTimer, pOurDevice
-			
-			; initialize Csq
-			mov ebx, pOurDevice
-			mov ebx, (DEVICE_OBJECT PTR [ebx]).DeviceExtension
-			lea ebx, (OurDeviceExtension PTR [ebx]).stCsq
-			invoke IoCsqInitialize, ebx, offset CsqInsertIrp, offset CsqRemoveIrp, offset CsqPeekNextIrp, offset CsqAcquireLock, offset CsqReleaseLock, offset CsqCompleteCanceledIrp
+
+      mov ebx, pOurDevice
+      mov ebx, (DEVICE_OBJECT PTR [ebx]).DeviceExtension
+      lea ebx, (OurDeviceExtension PTR [ebx]).stQueue
+      InitializeListHead ebx
+
+      mov eax, pOurDevice
+      mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
+      invoke KeInitializeTimer, addr (OurDeviceExtension ptr [eax]).stTime
+
+      mov eax, pOurDevice
+      mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
+      invoke KeInitializeDpc, addr (OurDeviceExtension ptr [eax]).stDPC, offset OnTimer, pOurDevice
+
+      mov ebx, pOurDevice
+      mov ebx, (DEVICE_OBJECT PTR [ebx]).DeviceExtension
+      lea ebx, (OurDeviceExtension PTR [ebx]).stCsq
+      invoke IoCsqInitialize, ebx, offset CsqInsertIrp, offset CsqRemoveIrp, offset CsqPeekNextIrp, offset CsqAcquireLock, offset CsqReleaseLock, offset CsqCompleteCanceledIrp
     .else
       mov eax, STATUS_UNSUCCESSFUL
     .endif      
@@ -382,25 +354,23 @@ AddDevice proc uses ebx pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
   .endif
   ret
 AddDevice endp
-  
-;//*** it is time to unload our driver
+
 Unload proc pOurDriver:PDRIVER_OBJECT
-	xor eax, eax
-	ret
+  xor eax, eax
+  ret
 Unload endp
 
-;//*** driver entry
 DriverEntry proc pOurDriver:PDRIVER_OBJECT, pOurRegistry:PUNICODE_STRING
-	mov eax, pOurDriver
-	mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_PNP    * (sizeof PVOID)], offset IrpPnP
-	mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_CREATE * (sizeof PVOID)], offset IrpOpenClose
-	mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_CLOSE  * (sizeof PVOID)], offset IrpOpenClose
-	mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_DEVICE_CONTROL * (sizeof PVOID)], offset IrpIOCTL
-	mov (DRIVER_OBJECT PTR [eax]).DriverUnload, offset Unload
-	mov eax, (DRIVER_OBJECT PTR [eax]).DriverExtension
-	mov (DRIVER_EXTENSION PTR [eax]).AddDevice, AddDevice
-	mov eax, STATUS_SUCCESS
-	ret
+  mov eax, pOurDriver
+  mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_PNP    * (sizeof PVOID)], offset IrpPnp
+  mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_CREATE * (sizeof PVOID)], offset IrpOpenClose
+  mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_CLOSE  * (sizeof PVOID)], offset IrpOpenClose
+  mov (DRIVER_OBJECT PTR [eax]).MajorFunction[IRP_MJ_DEVICE_CONTROL * (sizeof PVOID)], offset IrpIOCTL
+  mov (DRIVER_OBJECT PTR [eax]).DriverUnload, offset Unload
+  mov eax, (DRIVER_OBJECT PTR [eax]).DriverExtension
+  mov (DRIVER_EXTENSION PTR [eax]).AddDevice, AddDevice
+  mov eax, STATUS_SUCCESS
+  ret
 DriverEntry endp
 end DriverEntry
 .end
