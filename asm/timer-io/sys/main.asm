@@ -138,10 +138,10 @@ AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
       mov eax, STATUS_SUCCESS
       
       invoke IoInitializeTimer, pOurDevice, offset OnTimer, NULL
+      invoke IoCreateSymbolicLink, addr szSymName, addr suDevName
     .else
       mov eax, STATUS_UNSUCCESSFUL
-    .endif      
-    invoke IoCreateSymbolicLink, addr szSymName, addr suDevName
+    .endif
   .endif
   ret
 AddDevice endp

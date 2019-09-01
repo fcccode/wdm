@@ -140,11 +140,10 @@ AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
       
       mov eax, pOurDevice
       and (DEVICE_OBJECT PTR [eax]).Flags, not DO_DEVICE_INITIALIZING
-      mov eax, STATUS_SUCCESS
+      invoke IoCreateSymbolicLink, addr szSymName, addr suDevName
     .else
       mov eax, STATUS_UNSUCCESSFUL
-    .endif      
-    invoke IoCreateSymbolicLink, addr szSymName, addr suDevName
+    .endif
   .endif
   ret
 AddDevice endp
