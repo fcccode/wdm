@@ -16,8 +16,8 @@ OurDeviceExtension struct
   szBuffer byte 1024 dup(?)
 OurDeviceExtension ends
 
-IOCTL_GET  equ CTL_CODE(FILE_DEVICE_UNKNOWN, 800h, METHOD_BUFFERED, FILE_ANY_ACCESS)
-IOCTL_SET  equ CTL_CODE(FILE_DEVICE_UNKNOWN, 801h, METHOD_BUFFERED, FILE_ANY_ACCESS)
+IOCTL_GET equ CTL_CODE(FILE_DEVICE_UNKNOWN, 800h, METHOD_BUFFERED, FILE_ANY_ACCESS)
+IOCTL_SET equ CTL_CODE(FILE_DEVICE_UNKNOWN, 801h, METHOD_BUFFERED, FILE_ANY_ACCESS)
  
 .const
 DEV_NAME word "\","D","e","v","i","c","e","\","M","y","D","r","i","v","e","r",0
@@ -26,12 +26,12 @@ MSG_GET  byte "IOCTL_GET",0
 MSG_SET  byte "IOCTL_SET",0
 
 .code
-IrpOpenClose proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+IrpOpenClose proc pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MajorFunction
-  .if ebx == IRP_MJ_CREATE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MajorFunction
+  .if eax == IRP_MJ_CREATE
     invoke DbgPrint, $CTA0("IRP_MJ_CREATE")
-  .elseif ebx == IRP_MJ_CLOSE
+  .elseif eax == IRP_MJ_CLOSE
     invoke DbgPrint, $CTA0("IRP_MJ_CLOSE")
   .endif
 
@@ -43,14 +43,12 @@ IrpOpenClose proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpOpenClose endp
 
-IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+IrpIOCTL proc pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   local dwLen: DWORD
   local pdx:PTR OurDeviceExtension
   local pBuf:DWORD
 
-  push 0
-  pop dwLen
-
+  and dwLen, 0
   mov eax, pOurDevice
   push (DEVICE_OBJECT PTR [eax]).DeviceExtension
   pop pdx
@@ -96,7 +94,7 @@ IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpIOCTL endp
 
-IrpPnp proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+IrpPnp proc pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   local pdx:PTR OurDeviceExtension
   local szSymName:UNICODE_STRING
 
@@ -105,11 +103,11 @@ IrpPnp proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   pop pdx
    
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MinorFunction
-  .if ebx == IRP_MN_START_DEVICE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MinorFunction
+  .if eax == IRP_MN_START_DEVICE
     mov eax, pIrp
     mov (_IRP PTR [eax]).IoStatus.Status, STATUS_SUCCESS
-  .elseif ebx == IRP_MN_REMOVE_DEVICE
+  .elseif eax == IRP_MN_REMOVE_DEVICE
     invoke RtlInitUnicodeString, addr szSymName, offset SYM_NAME
     invoke IoDeleteSymbolicLink, addr szSymName     
     mov eax, pIrp
@@ -146,15 +144,12 @@ AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
       or (DEVICE_OBJECT PTR [eax]).Flags, DO_BUFFERED_IO
       and (DEVICE_OBJECT PTR [eax]).Flags, not DO_DEVICE_INITIALIZING
       invoke IoCreateSymbolicLink, addr szSymName, addr suDevName
-    .else
-      mov eax, STATUS_UNSUCCESSFUL
     .endif
   .endif
   ret
 AddDevice endp
 
 Unload proc pOurDriver:PDRIVER_OBJECT
-  xor eax, eax
   ret
 Unload endp
 

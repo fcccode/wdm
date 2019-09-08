@@ -43,6 +43,7 @@ OnTimer proc uses ebx pDpc:PKDPC, pContext:PVOID, pArg1:PVOID, PArg2:PVOID
     mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
     lea eax, (OurDeviceExtension PTR [eax]).stQueue
     RemoveHeadList eax
+    
     ; CONTAINING_RECORD 
     sub eax, _IRP.Tail.Overlay.ListEntry
     mov bl, (_IRP PTR [eax]).Cancel
@@ -65,12 +66,12 @@ OnTimer proc uses ebx pDpc:PKDPC, pContext:PVOID, pArg1:PVOID, PArg2:PVOID
   ret
 OnTimer endp
 
-IrpOpenClose proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
+IrpOpenClose proc pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MajorFunction
-  .if ebx == IRP_MJ_CREATE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MajorFunction
+  .if eax == IRP_MJ_CREATE
     invoke DbgPrint, $CTA0("IRP_MJ_CREATE")
-  .elseif ebx == IRP_MJ_CLOSE
+  .elseif eax == IRP_MJ_CLOSE
     invoke DbgPrint, $CTA0("IRP_MJ_CLOSE")
   .endif
 
@@ -87,9 +88,7 @@ IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   local pdx:PTR Dev_Ext
   local stTimePeriod:LARGE_INTEGER
 
-  push 0
-  pop dwLen
-
+  and dwLen, 0
   mov eax, pOurDevice
   push (DEVICE_OBJECT PTR [eax]).DeviceExtension
   pop pdx
@@ -124,7 +123,7 @@ IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpIOCTL endp
 
-IrpPnp proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
+IrpPnp proc pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   local pdx:PTR OurDeviceExtension
   local szSymName:UNICODE_STRING
 
@@ -133,11 +132,11 @@ IrpPnp proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   pop pdx
    
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MinorFunction
-  .if ebx == IRP_MN_START_DEVICE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MinorFunction
+  .if eax == IRP_MN_START_DEVICE
     mov eax, pIrp
     mov (_IRP PTR [eax]).IoStatus.Status, STATUS_SUCCESS
-  .elseif ebx == IRP_MN_REMOVE_DEVICE
+  .elseif eax == IRP_MN_REMOVE_DEVICE
     invoke RtlInitUnicodeString, addr szSymName, offset SYM_NAME
     invoke IoDeleteSymbolicLink, addr szSymName     
     mov eax, pIrp
@@ -187,15 +186,12 @@ AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
       mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
       invoke KeInitializeDpc, addr (OurDeviceExtension ptr [eax]).stDPC, offset OnTimer, pOurDevice
       invoke IoCreateSymbolicLink, addr szSymName, addr suDevName
-    .else
-      mov eax, STATUS_UNSUCCESSFUL
     .endif      
   .endif
   ret
 AddDevice endp
 
 Unload proc pOurDriver:PDRIVER_OBJECT
-  xor eax, eax
   ret
 Unload endp
 

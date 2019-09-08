@@ -23,13 +23,12 @@ DEV_NAME word "\","D","e","v","i","c","e","\","M","y","D","r","i","v","e","r",0
 SYM_NAME word "\","D","o","s","D","e","v","i","c","e","s","\","M","y","D","r","i","v","e","r",0
 
 .code
-IrpOpenClose proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+IrpOpenClose proc pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MajorFunction
-
-  .if ebx == IRP_MJ_CREATE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MajorFunction
+  .if eax == IRP_MJ_CREATE
     invoke DbgPrint, $CTA0("IRP_MJ_CREATE")
-  .elseif ebx == IRP_MJ_CLOSE
+  .elseif eax == IRP_MJ_CLOSE
     invoke DbgPrint, $CTA0("IRP_MJ_CLOSE")
   .endif
 
@@ -41,23 +40,21 @@ IrpOpenClose proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpOpenClose endp
 
-IrpReadWrite proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+IrpReadWrite proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   local bReadable:dword
   local bWritable:dword
   local dwLen:dword
   local pBuf:dword
   local pdx:PTR OurDeviceExtension
   
-  xor eax, eax
-  mov dwLen, eax
-
+  and dwLen, 0
   mov eax, pOurDevice
   push (DEVICE_OBJECT PTR [eax]).DeviceExtension
   pop pdx
   
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MajorFunction
-  .if ebx == IRP_MJ_WRITE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MajorFunction
+  .if eax == IRP_MJ_WRITE
     invoke DbgPrint, $CTA0("IRP_MJ_WRITE")
     
     IoGetCurrentIrpStackLocation pIrp
@@ -77,11 +74,10 @@ IrpReadWrite proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
       invoke memcpy, addr (OurDeviceExtension PTR [eax]).szBuffer, ebx, dwLen
       mov bReadable, 1
     _finally
-    
-    .if bReadable == 0
-      invoke DbgPrint, $CTA0("Failed to read from user buffer")
-    .endif
-  .elseif ebx == IRP_MJ_READ
+      .if bReadable == 0
+        invoke DbgPrint, $CTA0("Failed to read from user buffer")
+      .endif
+  .elseif eax == IRP_MJ_READ
     invoke DbgPrint, $CTA0("IRP_MJ_READ")
    
     mov eax, pIrp
@@ -107,10 +103,9 @@ IrpReadWrite proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
     
       mov bWritable, 1
     _finally
-    
-    .if bWritable == 0
-      invoke DbgPrint, $CTA0("Failed to write to user buffer")
-    .endif
+      .if bWritable == 0
+        invoke DbgPrint, $CTA0("Failed to write to user buffer")
+      .endif
   .endif
   
   mov eax, pIrp
@@ -141,19 +136,16 @@ AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
       mov eax, pOurDevice
       and (DEVICE_OBJECT PTR [eax]).Flags, not DO_DEVICE_INITIALIZING
       invoke IoCreateSymbolicLink, addr szSymName, addr suDevName
-    .else
-      mov eax, STATUS_UNSUCCESSFUL
     .endif
   .endif
   ret
 AddDevice endp
 
 Unload proc pOurDriver:PDRIVER_OBJECT
-  xor eax, eax
   ret
 Unload endp
 
-IrpPnp proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+IrpPnp proc pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   local pdx:PTR OurDeviceExtension
   local szSymName:UNICODE_STRING
   
@@ -162,11 +154,11 @@ IrpPnp proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   pop pdx
   
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MinorFunction
-  .if ebx == IRP_MN_START_DEVICE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MinorFunction
+  .if eax == IRP_MN_START_DEVICE
     mov eax, pIrp
     mov (_IRP PTR [eax]).IoStatus.Status, STATUS_SUCCESS
-  .elseif ebx == IRP_MN_REMOVE_DEVICE
+  .elseif eax == IRP_MN_REMOVE_DEVICE
     invoke RtlInitUnicodeString, addr szSymName, offset SYM_NAME
     invoke IoDeleteSymbolicLink, addr szSymName     
     mov eax, pIrp

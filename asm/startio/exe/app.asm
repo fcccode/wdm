@@ -23,9 +23,9 @@ MSG_READ  db "RD: %s",10,13,0
 MSG_LEN   db "Length: %d",10,13,0
 
 .data?
-hFile     dd ?
-dwRet     dd ?
-szBuffer  db 256 dup(?)
+hFile    dd ?
+dwRet    dd ?
+szBuffer db 256 dup(?)
 
 .code
 start:
@@ -34,8 +34,8 @@ start:
     invoke crt_printf, offset ERR_OPEN
     invoke ExitProcess, -1
   .endif
+  
   mov hFile, eax
-
   invoke wsprintf, offset szBuffer, offset MSG_SEND
   invoke StrLen, offset szBuffer
   inc eax
@@ -49,4 +49,5 @@ start:
   invoke crt_printf, offset MSG_LEN, dwRet
   invoke CloseHandle, hFile
   invoke ExitProcess, 0
+  
 end start

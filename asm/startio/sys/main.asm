@@ -21,7 +21,7 @@ DEV_NAME word "\","D","e","v","i","c","e","\","M","y","D","r","i","v","e","r",0
 SYM_NAME word "\","D","o","s","D","e","v","i","c","e","s","\","M","y","D","r","i","v","e","r",0
 
 .code
-StartIo proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+StartIo proc pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   local pdx:PTR OurDeviceExtension
   local dwLen:DWORD
   local pBuf:DWORD
@@ -35,8 +35,8 @@ StartIo proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   pop pBuf
   
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MajorFunction
-  .if ebx == IRP_MJ_WRITE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MajorFunction
+  .if eax == IRP_MJ_WRITE
     invoke DbgPrint, $CTA0("StartIo, IRP_MJ_WRITE")
     IoGetCurrentIrpStackLocation pIrp
     Push (IO_STACK_LOCATION PTR [eax]).Parameters.Write._Length
@@ -45,7 +45,7 @@ StartIo proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
     mov eax, pdx
     invoke memcpy, addr (OurDeviceExtension PTR [eax]).szBuffer, pBuf, dwLen
     invoke DbgPrint, $CTA0("Buffer: %s, Length: %d"), pBuf, dwLen
-  .elseif ebx == IRP_MJ_READ
+  .elseif eax == IRP_MJ_READ
     invoke DbgPrint, $CTA0("StartIo, IRP_MJ_READ")
     mov eax, pdx
     invoke strlen, addr (OurDeviceExtension PTR [eax]).szBuffer
@@ -67,11 +67,11 @@ StartIo proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 StartIo endp
 
-IrpFile proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+IrpFile proc pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MajorFunction
-  .if (ebx == IRP_MJ_CREATE) || (ebx == IRP_MJ_CLOSE) 
-    .if (ebx == IRP_MJ_CREATE)
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MajorFunction
+  .if (eax == IRP_MJ_CREATE) || (eax == IRP_MJ_CLOSE) 
+    .if (eax == IRP_MJ_CREATE)
       invoke DbgPrint, $CTA0("IRP_MJ_CREATE")
     .else
       invoke DbgPrint, $CTA0("IRP_MJ_CLOSE")
@@ -81,13 +81,13 @@ IrpFile proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
     mov (_IRP PTR [eax]).IoStatus.Status, STATUS_SUCCESS
     fastcall IofCompleteRequest, pIrp, IO_NO_INCREMENT
     mov eax, STATUS_SUCCESS
-  .elseif (ebx == IRP_MJ_READ) || (ebx == IRP_MJ_WRITE)
-    IoGetCurrentIrpStackLocation pIrp
-    .if (ebx == IRP_MJ_READ)
+  .elseif (eax == IRP_MJ_READ) || (eax == IRP_MJ_WRITE)
+    .if (eax == IRP_MJ_READ)
       invoke DbgPrint, $CTA0("IrpFile, IRP_MJ_READ")
     .else
       invoke DbgPrint, $CTA0("IrpFile, IRP_MJ_WRITE")
     .endif
+    IoGetCurrentIrpStackLocation pIrp
     IoMarkIrpPending pIrp
     invoke IoStartPacket, pOurDevice, pIrp, 0, NULL
     mov eax, STATUS_PENDING
@@ -95,7 +95,7 @@ IrpFile proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpFile endp
 
-IrpPnp proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
+IrpPnp proc pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   local pdx:PTR OurDeviceExtension
   local szSymName:UNICODE_STRING
 
@@ -104,11 +104,11 @@ IrpPnp proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   pop pdx
    
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MinorFunction
-  .if ebx == IRP_MN_START_DEVICE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MinorFunction
+  .if eax == IRP_MN_START_DEVICE
     mov eax, pIrp
     mov (_IRP PTR [eax]).IoStatus.Status, STATUS_SUCCESS
-  .elseif ebx == IRP_MN_REMOVE_DEVICE
+  .elseif eax == IRP_MN_REMOVE_DEVICE
     invoke RtlInitUnicodeString, addr szSymName, offset SYM_NAME
     invoke IoDeleteSymbolicLink, addr szSymName     
     mov eax, pIrp
@@ -145,15 +145,12 @@ AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
       or (DEVICE_OBJECT PTR [eax]).Flags, DO_BUFFERED_IO
       and (DEVICE_OBJECT PTR [eax]).Flags, not DO_DEVICE_INITIALIZING
       invoke IoCreateSymbolicLink, addr szSymName, addr suDevName
-    .else
-      mov eax, STATUS_UNSUCCESSFUL
     .endif
   .endif
   ret
 AddDevice endp
 
 Unload proc pOurDriver:PDRIVER_OBJECT
-  xor eax, eax
   ret
 Unload endp
 

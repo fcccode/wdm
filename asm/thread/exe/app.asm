@@ -32,12 +32,11 @@ start:
     invoke crt_printf, $CTA0("failed to open mydriver")
     invoke ExitProcess, -1
   .endif
+  
   mov hFile, eax
-   
   invoke DeviceIoControl, hFile, IOCTL_START, NULL, 0, NULL, 0, offset dwRet, NULL
   invoke Sleep, 3000
   invoke DeviceIoControl, hFile, IOCTL_STOP, NULL, 0, NULL, 0, offset dwRet, NULL
-
   invoke CloseHandle, hFile
   invoke ExitProcess, 0
 end start

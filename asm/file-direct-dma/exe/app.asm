@@ -32,8 +32,8 @@ start:
     invoke crt_printf, offset MSG_ERR
     invoke ExitProcess, -1
   .endif
+  
   mov hFile, eax
-
   invoke StrLen, offset MSG_SEND
   inc eax
   mov dwRet, eax
@@ -43,7 +43,7 @@ start:
   invoke ReadFile, hFile, offset szBuffer, 255, offset dwRet, 0
   invoke crt_printf, offset MSG_RD, offset szBuffer, dwRet
   invoke CloseHandle, hFile
-
   invoke ExitProcess, 0
+  
 end start
 
