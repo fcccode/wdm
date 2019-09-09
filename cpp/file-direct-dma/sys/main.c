@@ -62,7 +62,7 @@ NTSTATUS IrpFile(PDEVICE_OBJECT pOurDevice, PIRP pIrp)
     pBuf = MmGetMdlVirtualAddress(pIrp->MdlAddress);
     strcpy(szBuffer, pBuf);
     DbgPrint("IRP_MJ_WRITE");
-    DbgPrint("Buffer: %s, Length: %d", szBuffer, psk->Parameters.Write.Length);
+    DbgPrint("Buffer: %s, Length: %d", szBuffer, MmGetMdlByteCount(pIrp->MdlAddress));
     pIrp->IoStatus.Status = STATUS_SUCCESS;
     pIrp->IoStatus.Information = strlen(szBuffer)+1;
     break;

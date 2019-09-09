@@ -127,6 +127,7 @@ NTSTATUS AddDevice(PDRIVER_OBJECT pOurDriver, PDEVICE_OBJECT pPhyDevice)
   pOurDevice->Flags|= DO_BUFFERED_IO;
   
   InitializeListHead(&stQueue);
+  KeInitializeSpinLock(&stLock);
   KeInitializeTimer(&stTime);
   KeInitializeDpc(&stDPC, OnTimer, pOurDevice);
   IoCsqInitialize(&stCsq, CsqInsertIrp, CsqRemoveIrp, CsqPeekNextIrp, CsqAcquireLock, CsqReleaseLock, CsqCompleteCanceledIrp);
