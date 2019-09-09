@@ -36,12 +36,12 @@ OnTimer proc pDpc:PKDPC, pContext:PVOID, pArg1:PVOID, PArg2:PVOID
   ret
 OnTimer endp
 
-IrpOpenClose proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+IrpOpenClose proc pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MajorFunction
-  .if ebx == IRP_MJ_CREATE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MajorFunction
+  .if eax == IRP_MJ_CREATE
     invoke DbgPrint, $CTA0("IRP_MJ_CREATE")
-  .elseif ebx == IRP_MJ_CLOSE
+  .elseif eax == IRP_MJ_CLOSE
     invoke DbgPrint, $CTA0("IRP_MJ_CLOSE")
   .endif
 
@@ -53,7 +53,7 @@ IrpOpenClose proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpOpenClose endp
 
-IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
+IrpIOCTL proc uses ebx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   local dwLen: DWORD
   local pdx:PTR OurDeviceExtension
   local pBuf:DWORD
@@ -78,7 +78,7 @@ IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
     mov ebx, pdx
     mov (OurDeviceExtension PTR[ebx]).dwTimerCnt, 0
     
-    ;//invoke KeSetTimer, addr (OurDeviceExtension ptr[ebx]).stTimerObj, stTimeCnt.LowPart, stTimeCnt.HighPart, addr (OurDeviceExtension ptr[ebx]).stTimerDPC
+    ;invoke KeSetTimer, addr (OurDeviceExtension ptr[ebx]).stTimerObj, stTimeCnt.LowPart, stTimeCnt.HighPart, addr (OurDeviceExtension ptr[ebx]).stTimerDPC
     invoke KeSetTimerEx, addr (OurDeviceExtension ptr[ebx]).stTimerObj, stTimeCnt.LowPart, stTimeCnt.HighPart, 1000, addr (OurDeviceExtension ptr[ebx]).stTimerDPC
   .elseif eax == IOCTL_STOP
     invoke DbgPrint, offset MSG_STOP
@@ -95,7 +95,7 @@ IrpIOCTL proc uses ebx ecx pOurDevice:PDEVICE_OBJECT, pIrp:PIRP
   ret
 IrpIOCTL endp
 
-IrpPnp proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
+IrpPnp proc pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   local pdx:PTR OurDeviceExtension
   local szSymName:UNICODE_STRING
 
@@ -104,11 +104,11 @@ IrpPnp proc uses ebx pDevObj:PDEVICE_OBJECT, pIrp:PIRP
   pop pdx
    
   IoGetCurrentIrpStackLocation pIrp
-  movzx ebx, (IO_STACK_LOCATION PTR [eax]).MinorFunction
-  .if ebx == IRP_MN_START_DEVICE
+  movzx eax, (IO_STACK_LOCATION PTR [eax]).MinorFunction
+  .if eax == IRP_MN_START_DEVICE
     mov eax, pIrp
     mov (_IRP PTR [eax]).IoStatus.Status, STATUS_SUCCESS
-  .elseif ebx == IRP_MN_REMOVE_DEVICE
+  .elseif eax == IRP_MN_REMOVE_DEVICE
     invoke RtlInitUnicodeString, addr szSymName, offset SYM_NAME
     invoke IoDeleteSymbolicLink, addr szSymName     
     mov eax, pIrp
@@ -154,15 +154,12 @@ AddDevice proc pOurDriver:PDRIVER_OBJECT, pPhyDevice:PDEVICE_OBJECT
       mov eax, (DEVICE_OBJECT PTR [eax]).DeviceExtension
       invoke KeInitializeDpc, addr (OurDeviceExtension ptr [eax]).stTimerDPC, offset OnTimer, pOurDevice
       invoke IoCreateSymbolicLink, addr szSymName, addr suDevName
-    .else
-      mov eax, STATUS_UNSUCCESSFUL
     .endif
   .endif
   ret
 AddDevice endp
 
 Unload proc pOurDriver:PDRIVER_OBJECT
-  xor eax, eax
   ret
 Unload endp
 
